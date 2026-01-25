@@ -6,7 +6,7 @@ use tracing::{Level, info};
   fn main() -> Result<()> {
     // Initialize tracing subscriber for logging
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)  // show ERROR and above
+        .with_max_level(Level::INFO)  // show INFO and above
         .pretty()
         .init();
 
