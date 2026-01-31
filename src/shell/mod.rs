@@ -1,84 +1,275 @@
 mod unix;
 mod windows;
 
-use anyhow::Result;
-// use std::collections::HashMap;
-// use std::path::PathBuf;
-use sysinfo::{System, Pid};
+use anyhow::{anyhow, Result};
+// use std::{collections::HashMap};
+// use std::path::PathBuf; // Cross-platform file paths
+use sysinfo::{System, Pid, Process};
+use tracing::{info, trace, debug};
 
-// / Trait defining shell operations for each supported shell.
+// Trait defining shell operations for each supported shell.
 // pub trait Shell {
-//     // / Shell name (e.g., "bash", "zsh", "powershell") for display purposes.
+//     // Shell name (e.g., "bash", "zsh", "powershell") for display purposes.
 //     fn name(&self) -> &'static str;
 
-//     /// Path to the shell's configuration file.
+//     // Path to the shell's configuration file.
 //     fn config_path(&self) -> Result<PathBuf>;
 
-//     /// Add an alias to the shell configuration.
+//     // Add an alias to the shell configuration.
 //     fn add_alias(&self, alias_name: &str, command: &str) -> Result<()>;
 
-//     // / Remove an alias from the shell configuration.
+//     // Remove an alias from the shell configuration.
 //     fn remove_alias(&self, alias_name: &str) -> Result<()>;
 
-//     // / List all aliases in the shell configuration.
-//     // / Returns a HashMap of alias names to commands.
+//     // List all aliases in the shell configuration.
+//     // Returns a HashMap of alias names to commands.
 //     fn list_aliases(&self) -> Result<HashMap<String, String>>;
 
-//     // / Alias exists check.
+//     // Alias exists check.
 //     fn alias_exists(&self, alias_name: &str) -> Result<bool> {
 //         let aliases = self.list_aliases()?;
 //         Ok(aliases.contains_key(alias_name))
 //     }
 
-//     // / Reload the shell configuration to apply changes.
-//     // / This may involve sourcing the config file or restarting the shell.
+//     // Reload the shell configuration to apply changes.
+//     // This may involve sourcing the config file or restarting the shell.
 //     fn reload_instructions(&self) -> String;
 
 // }
 
-/// Factory function to get the appropriate Shell implementation based on the OS and shell type.
-// pub fn get_shell(shell_type: &str) -> Result<Box<dyn Shell>> {
-//     #[cfg(target_os = "windows")]
-//     {
-//         log::debug!("[Shell] OS detected: Windows");
-//         Ok(Box::new(windows::Powershell::new()?))
-//     }
+/// All shells that akash supports
+#[derive(Debug, Clone, Copy, PartialEq)]
+//       ↑      ↑      ↑      ↑
+//       │      │      │      └── Enables == comparison
+//       │      │      └── Auto-copy (no move) because it's small
+//       │      └── Enables .clone() method
+//       └── Enables {:?} debug printing
+pub enum ShellType {
+    Bash,
+    Zsh,
+    PowerShell,
+    // Fish,  // For later
+}
 
-//     #[cfg(target_os = "linux")]
-//     {
-//         log::debug!("[Shell] OS detected: Linux");
-//         match shell_type {
-//             "bash" => Ok(Box::new(unix::Bash::new()?)),
-//             "zsh" => Ok(Box::new(unix::Zsh::new()?)),
-//             _ => Err(anyhow::anyhow!("Unsupported shell type: {}", shell_type)),
+/// Display trait: how to print ShellType as a user-friendly string
+impl std::fmt::Display for ShellType {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShellType::Bash => write!(formatter, "Bash Shell"),
+            ShellType::Zsh => write!(formatter, "Zsh Shell"),
+            ShellType::PowerShell => write!(formatter, "PowerShell Shell"),
+        }
+    }
+}
+
+/// FromStr trait: how to parse a string into ShellType
+/// Enables: "bash".parse::<ShellType>() → Ok(ShellType::Bash)
+/// Used by: clap to parse --shell argument
+impl std::str::FromStr for ShellType {
+    type Err = anyhow::Error;
+
+    // Method signature from FromStr trait (What to use)
+    fn from_str(input: &str) -> Result<Self> {
+        // Body: How to parse the string (What to do)
+        // Normalize once, reuse
+        let normalized = input.to_lowercase();
+
+        match normalized.as_str() {
+            "bash" | "git-bash" => Ok(Self::Bash),
+            "zsh" => Ok(Self::Zsh),
+            "powershell" | "pwsh" => Ok(Self::PowerShell),
+            _ => anyhow::bail!("Unsupported shell: '{}'. Supported: bash, zsh, powershell", input),
+        }
+    }
+}
+
+
+// ============================================================================
+// DETECTION: Parent Process
+// ============================================================================
+
+/// Gets the name of the process that launched akash (the shell)
+fn get_parent_process_name() -> Result<String> {
+    let mut system = System::new_all();
+    system.refresh_all();
+
+    // Get current process ID
+    let current_pid = std::process::id();
+    trace!("Current PID: {}", current_pid);
+
+    // Find current process
+    let current_process: &Process = system
+        .process(Pid::from_u32(current_pid))
+        .ok_or_else(|| anyhow!("Cannot find current process"))?;
+
+    // Get parent PID
+    let parent_pid: Pid = current_process
+        .parent()
+        .ok_or_else(|| anyhow!("No parent process found"))?;
+    trace!("Parent PID: {:?}", parent_pid);
+
+    // Get parent process
+    let parent_process: &Process = system
+        .process(parent_pid)
+        .ok_or_else(|| anyhow!("Cannot find parent process"))?;
+
+    // Get parent process name
+    let parent_name = parent_process.name().to_string_lossy().into_owned();
+    debug!("Parent process name: {}", parent_name);
+
+    Ok(parent_name)
+}
+
+/// Try to detect shell from parent process name
+fn detect_from_parent_process() -> Option<ShellType> {
+    let parent_name: String = get_parent_process_name().ok()?;
+    let parent_lower: String = parent_name.to_lowercase();
+
+    if parent_lower.contains("bash") || parent_lower.contains("git-bash") {
+        debug!("Detected Bash from parent process");
+        return Some(ShellType::Bash);
+    }
+    if parent_lower.contains("zsh") {
+        debug!("Detected Zsh from parent process");
+        return Some(ShellType::Zsh);
+    }
+    if parent_lower.contains("pwsh") || parent_lower.contains("powershell") {
+        debug!("Detected PowerShell from parent process");
+        return Some(ShellType::PowerShell);
+    }
+
+    debug!("Unknown parent process: {}", parent_name);
+    None
+}
+
+
+// ============================================================================
+// DETECTION: Environment Variables
+// ============================================================================
+
+/// Try to detect shell from environment variables
+fn detect_from_env() -> Option<ShellType> {
+    // Check $SHELL (Unix login shell)
+    if let Ok(shell) = std::env::var("SHELL") {
+        trace!("$SHELL = {}", shell);
+        let shell_lower = shell.to_lowercase();
+
+        if shell_lower.contains("zsh") {
+            debug!("Detected Zsh from $SHELL");
+            return Some(ShellType::Zsh);
+        }
+        if shell_lower.contains("bash") {
+            debug!("Detected Bash from $SHELL");
+            return Some(ShellType::Bash);
+        }
+    }
+
+    // Check PowerShell-specific variable
+    if std::env::var("PSModulePath").is_ok() {
+        debug!("Detected PowerShell from $PSModulePath");
+        return Some(ShellType::PowerShell);
+    }
+
+    // Check version variables
+    if std::env::var("BASH_VERSION").is_ok() {
+        debug!("Detected Bash from $BASH_VERSION");
+        return Some(ShellType::Bash);
+    }
+    if std::env::var("ZSH_VERSION").is_ok() {
+        debug!("Detected Zsh from $ZSH_VERSION");
+        return Some(ShellType::Zsh);
+    }
+
+    debug!("Could not detect shell from environment");
+    None
+}
+
+// ============================================================================
+// DETECTION: OS Fallback
+// ============================================================================
+
+/// Fallback detection based on OS
+fn detect_from_os() -> ShellType {
+    #[cfg(target_os = "windows")]
+    {
+        debug!("Fallback: Windows → PowerShell");
+        ShellType::PowerShell
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        debug!("Fallback: macOS → Zsh");
+        ShellType::Zsh
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        debug!("Fallback: Linux → Bash");
+        ShellType::Bash
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        warn!("Unknown OS, defaulting to Bash");
+        ShellType::Bash
+    }
+}
+
+// ============================================================================
+// PUBLIC API
+// ============================================================================
+
+/// Detect the current shell using multiple methods
+pub fn detect_shell() -> ShellType {
+    // Method 1: Parent process (most accurate)
+    if let Some(shell) = detect_from_parent_process() {
+        return shell;
+    }
+
+    // Method 2: Environment variables (fallback)
+    if let Some(shell) = detect_from_env() {
+        return shell;
+    }
+
+    // Method 3: OS default (last resort)
+    detect_from_os()
+}
+
+/// Factory function to get the appropriate Shell implementation based on the OS and shell type.
+/// Create a Shell instance (with optional override)
+// pub fn get_shell(override_shell: Option<ShellType>) -> Result<Box<dyn Shell>> {
+//     let shell_type = match override_shell {
+//         Some(st) => {
+//             info!("Shell override: {}", st);
+//             st
 //         }
+//         None => {
+//             let detected = detect_shell();
+//             info!("Shell detected: {}", detected);
+//             detected
+//         }
+//     };
+
+//     match shell_type {
+//         ShellType::Bash => Ok(Box::new(unix::Bash::new()?)),
+//         ShellType::Zsh => Ok(Box::new(unix::Zsh::new()?)),
+//         ShellType::PowerShell => Ok(Box::new(windows::PowerShell::new()?)),
 //     }
 // }
 
-pub fn get_parent_process_name() -> Result<String> {
-      // 1. Create a System instance to query process info
-      let mut system = System::new_all();
-      system.refresh_all();
+// TEST
+pub fn get_shell(override_shell: Option<ShellType>) -> Result<ShellType> {  // Changed return type
+    let shell_type = match override_shell {
+        Some(st) => {
+            info!("Shell override: {}", st);
+            st
+        }
+        None => {
+            let detected = detect_shell();
+            info!("Shell detected: {}", detected);
+            detected
+        }
+    };
 
-      // 2. Get current process ID
-      let current_pid = std::process::id();
-
-      // 3. Find current process in the system
-      let current_process = system.process(Pid::from_u32(current_pid))
-          .ok_or_else(|| anyhow::anyhow!("Cannot find current process"))?;
-
-      // 4. Get parent PID
-      let parent_pid = current_process.parent()
-          .ok_or_else(|| anyhow::anyhow!("No parent process"))?;
-
-      // 5. Get parent process
-      let parent_process = system.process(parent_pid)
-          .ok_or_else(|| anyhow::anyhow!("Cannot find parent process"))?;
-
-      // 6. Get parent process name
-      // OsStr = Operating System String (can contain non-UTF8 characters on some systems)
-      let parent_name = parent_process.name();
-      
-      // to_string_lossy() = Converts OsStr to String, replacing invalid UTF-8 with if needed  
-      Ok(parent_name.to_string_lossy().into_owned())
-  }
+    Ok(shell_type)  // Just return the ShellType for now
+}

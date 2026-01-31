@@ -3,14 +3,20 @@ mod shell;
 use anyhow::Result;
 use tracing::{Level, info};
 
-  fn main() -> Result<()> {
-    // Initialize tracing subscriber for logging
+
+fn main() -> Result<()> {
+    // Initialize tracing (adjust based on your setup)
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)  // show INFO and above
-        .pretty()
+        .with_max_level(Level::DEBUG)
         .init();
 
-    let parent_name = shell::get_parent_process_name()?;
-    info!(parent_name = %parent_name, "Parent process name retrieved");
+    // Test detection
+    let shell_type = shell::get_shell(None)?;
+    info!("Detected: {}", shell_type);
+
+    // Test override
+    let shell_type = shell::get_shell(Some(shell::ShellType::PowerShell))?;
+    info!("Override: {}", shell_type);
+
     Ok(())
-  }
+}
