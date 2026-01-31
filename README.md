@@ -12,5 +12,4 @@
 
 ## Author comments
 
- - Some comments were added in the code for clarity and my own comprhension.
-
+- Some comments were added in the code for clarity and my own comprehension.
