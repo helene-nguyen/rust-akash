@@ -1,0 +1,239 @@
+use anyhow::{ anyhow, Context, Result };
+use serde::{ Deserialize, Serialize };
+use std::collections::BTreeMap;
+use std::path::{ PathBuf };
+use tracing::{ info, debug };
+
+/// JSON schema: {aliases: {alias_name: command, ...}}
+/// BTreeMap is used to maintain sorted order of aliases for consistent display and testing.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AliasStore {
+    pub aliases: BTreeMap<String, String>,
+}
+
+impl AliasStore {
+    /// Create a new empty store.
+    pub fn new_store() -> Self {
+        Self {
+            aliases: BTreeMap::new(),
+        }
+    }
+
+    /// Path to the JSON file where aliases are stored.
+    /// Store to: ~/.akash/aliases.json
+    pub fn store_path() -> Result<PathBuf> {
+        let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory!"))?;
+        let path = home.join(".akash").join("aliases.json");
+        debug!("Alias store path: {:?}", path);
+        Ok(path)
+    }
+
+    /// Load the store from disk, or create a new one if it doesn't exist.
+    pub fn store_load() -> Result<Self> {
+        let path = Self::store_path()?;
+
+        // If the file doesn't exist, we start with an empty store. This allows us to create aliases without needing a pre-existing file.
+        if !path.exists() {
+            debug!("No aliases file found at {}, starting fresh", path.display());
+            return Ok(Self::new_store());
+        }
+
+        // .with_context() adds the file path to the error message if reading fails, making it easier to debug issues related to file access.
+        let content = std::fs
+            ::read_to_string(&path)
+            .with_context(|| format!("Failed to read alias store from {}", path.display()))?;
+
+        let store: Self = serde_json
+            ::from_str(&content)
+            .with_context(|| format!("Failed to parse alias store JSON from {}", path.display()))?;
+
+        debug!("Loaded alias store with {} aliases", store.aliases.len());
+        Ok(store)
+    }
+
+    /// Save the store to disk, creating the directory if it doesn't exist.
+    pub fn store_save(&self) -> Result<()> {
+        let path = Self::store_path()?;
+
+        if let Some(parent) = path.parent() {
+            std::fs
+                ::create_dir_all(&parent)
+                .with_context(||
+                    format!("Failed to create directory for alias store at {}", parent.display())
+                )?;
+        }
+
+        let content = serde_json
+            ::to_string_pretty(self)
+            .context("Failed to serialize alias store to JSON")?;
+
+        std::fs
+            ::write(&path, content)
+            .with_context(|| format!("Failed to write alias store to {}", path.display()))?;
+
+        // Debug displays: {"level":"DEBUG", "message":"Saved alias store with N aliases", "path":"/home/user/.akash/aliases.json"}
+        debug!("Saved in alias store with {} aliases", self.aliases.len());
+        Ok(())
+    }
+
+    /// Add an alias to the store and save it.
+    pub fn add_alias(&mut self, alias_name: String, command: String) -> bool {
+        let is_new = !self.aliases.contains_key(&alias_name);
+
+        if is_new {
+            debug!("Adding new alias: {} -> {}", alias_name, command);
+        } else {
+            debug!("Updating existing alias: {} -> {}", alias_name, command);
+        }
+
+        self.aliases.insert(alias_name, command);
+        is_new
+    }
+
+    /// Remove an alias. Returns true if found and removed.
+    pub fn remove_alias(&mut self, alias_name: &str) -> bool {
+        let removed = self.aliases.remove(alias_name).is_some();
+        if removed {
+            info!("Removed alias: {}", alias_name);
+        } else {
+            info!("Alias not found for removal: {}", alias_name);
+        }
+        removed
+    }
+
+    /// Reference to all aliases.
+    pub fn list_aliases(&self) -> &BTreeMap<String, String> {
+        info!("Listing {} aliases", self.aliases.len());
+        &self.aliases
+    }
+
+    /// Check if an alias exists.
+    pub fn has_key(&self, alias_name: &str) -> bool {
+        let exists = self.aliases.contains_key(alias_name);
+        info!("Checking alias '{}': {}", alias_name, if exists {
+            "Alias found"
+        } else {
+            "Alias not found"
+        });
+        exists
+    }
+
+    // Validate an alias name: only alphanumeric, _ and - allowed.
+    // This ensures that alias names are simple and won't cause issues in shell commands.
+    pub fn validate_alias_name(alias_name: &str) -> Result<()> {
+        if alias_name.is_empty() {
+            debug!("Alias name validation failed: alias_name is empty");
+            anyhow::bail!("Alias name cannot be empty!");
+        }
+
+        if !alias_name.chars().all(|c| (c.is_alphanumeric() || c == '_' || c == '-')) {
+            debug!("Alias name validation failed: '{}' contains invalid characters", alias_name);
+            anyhow::bail!(
+                "Alias name can only contain alphanumeric characters, underscores, or hyphens!"
+            );
+        }
+        debug!("Alias name '{}' is valid", alias_name);
+        Ok(())
+    }
+}
+
+/// UNIT TESTS
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_store_is_empty() {
+        let store = AliasStore::new_store();
+        assert!(store.aliases.is_empty());
+    }
+
+    #[test]
+    fn add_alias_returns_true_for_new() {
+        let mut store = AliasStore::new_store();
+        assert!(store.add_alias("gs".into(), "git status".into()));
+    }
+
+    #[test]
+    fn add_alias_returns_false_for_existing() {
+        let mut store = AliasStore::new_store();
+        store.add_alias("gs".into(), "git status".into());
+        assert!(!store.add_alias("gs".into(), "git stash".into()));
+    }
+
+    #[test]
+    fn add_alias_updates_value() {
+        let mut store = AliasStore::new_store();
+        store.add_alias("gs".into(), "git status".into());
+        store.add_alias("gs".into(), "git stash".into());
+        assert_eq!(store.aliases["gs"], "git stash");
+    }
+
+    #[test]
+    fn remove_alias_returns_true_when_found() {
+        let mut store = AliasStore::new_store();
+        store.add_alias("gs".into(), "git status".into());
+        assert!(store.remove_alias("gs"));
+        assert!(store.aliases.is_empty());
+    }
+
+    #[test]
+    fn remove_alias_returns_false_when_not_found() {
+        let mut store = AliasStore::new_store();
+        assert!(!store.remove_alias("nonexistent"));
+    }
+
+    #[test]
+    fn has_key_finds_existing_alias() {
+        let mut store = AliasStore::new_store();
+        store.add_alias("gs".into(), "git status".into());
+        assert!(store.has_key("gs"));
+    }
+
+    #[test]
+    fn has_key_returns_false_for_missing() {
+        let store = AliasStore::new_store();
+        assert!(!store.has_key("nope"));
+    }
+
+    #[test]
+    fn list_aliases_returns_all() {
+        let mut store = AliasStore::new_store();
+        store.add_alias("a".into(), "alpha".into());
+        store.add_alias("b".into(), "bravo".into());
+        let list = store.list_aliases();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list["a"], "alpha");
+        assert_eq!(list["b"], "bravo");
+    }
+
+    #[test]
+    fn list_aliases_is_sorted() {
+        let mut store = AliasStore::new_store();
+        store.add_alias("z".into(), "zulu".into());
+        store.add_alias("a".into(), "alpha".into());
+        store.add_alias("m".into(), "mike".into());
+        let keys: Vec<&String> = store.list_aliases().keys().collect();
+        assert_eq!(keys, vec!["a", "m", "z"]);
+    }
+
+    #[test]
+    fn validate_alias_name_accepts_valid() {
+        assert!(AliasStore::validate_alias_name("gs").is_ok());
+        assert!(AliasStore::validate_alias_name("my-alias").is_ok());
+        assert!(AliasStore::validate_alias_name("my_alias").is_ok());
+        assert!(AliasStore::validate_alias_name("alias123").is_ok());
+    }
+
+    #[test]
+    fn validate_alias_name_rejects_empty() {
+        assert!(AliasStore::validate_alias_name("").is_err());
+    }
+
+    #[test]
+    fn validate_alias_name_rejects_invalid_chars() {
+        assert!(AliasStore::validate_alias_name("has space").is_err());
+        assert!(AliasStore::validate_alias_name("has!bang").is_err());
+        assert!(AliasStore::validate_alias_name("a/b").is_err());
+    }
+}
