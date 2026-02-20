@@ -1,4 +1,5 @@
-# akash
+![Akash image](./docs/media/akash.svg)
+# Aka$h_
 
 > Name decomposition: **a**lso **k**nown **a**s + **sh**ell
 
