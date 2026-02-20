@@ -12,6 +12,8 @@ use store::{ AliasStore };
 use config::Config;
 
 fn main() -> Result<()> {
+    // Create config file if missing (before loading or running any commands)
+    Config::create_default_if_missing()?;
     // Load config first (before tracing, since it controls log level)
     let config = Config::load()?;
 

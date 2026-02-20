@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{ Context, Result };
 use serde::Deserialize;
 use std::path::PathBuf;
 use tracing::debug;
@@ -31,9 +31,42 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Create a default config file if it doesn't exist
+    pub fn create_default_if_missing() -> Result<()> {
+        let path = Self::path()?;
+
+        if path.exists() {
+            return Ok(());
+        }
+
+        if let Some(parent) = path.parent() {
+            std::fs
+                ::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory {}", parent.display()))?;
+        }
+
+        let default_content =
+            r#"# Akash configuration file
+# Override default shell detection
+# Possible values: bash, zsh, powershell
+# shell = "powershell"
+
+# Log level: error, warn, info, debug, trace
+log_level = "warn"
+            "#;
+
+        std::fs
+            ::write(&path, default_content)
+            .with_context(|| format!("Failed to write {}", path.display()))?;
+
+        debug!("Created default config at {}", path.display());
+        Ok(())
+    }
+
     pub fn path() -> Result<PathBuf> {
-        let home =
-            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
+        let home = dirs
+            ::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
         Ok(home.join(".akash").join("config.toml"))
     }
 
@@ -45,10 +78,12 @@ impl Config {
             return Ok(Self::default());
         }
 
-        let content = std::fs::read_to_string(&path)
+        let content = std::fs
+            ::read_to_string(&path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
 
-        let config: Self = toml::from_str(&content)
+        let config: Self = toml
+            ::from_str(&content)
             .with_context(|| format!("Failed to parse {}", path.display()))?;
 
         debug!("Loaded config from {}", path.display());
