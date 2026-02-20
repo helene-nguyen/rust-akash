@@ -10,6 +10,24 @@ Akash solves this by giving you **one place to rule them all** 💍 A single, po
 
 A cross-platform CLI tool for managing shell aliases, written in Rust.
 
+## Quick Start
+
+```bash
+# 1. Build the project
+cargo build --release
+
+# 2. Add some aliases
+aka add gs "git status"
+aka add gp "git push"
+aka add ll "ls -la"
+
+# 3. Apply to your shell config
+aka apply
+
+# 4. Reload your shell
+source ~/.bashrc   # or ~/.zshrc, or restart PowerShell
+```
+
 ## Features
 
 - Centralized alias management across multiple shells
@@ -52,6 +70,20 @@ cp target/release/akash ~/.local/bin/
 
 # Windows (PowerShell)
 Copy-Item target\release\akash.exe $env:USERPROFILE\.local\bin\
+```
+
+### Uninstall
+
+```bash
+# 1. Remove the binary
+rm ~/.local/bin/akash  # or wherever you installed it
+
+# 2. Remove the alias store (optional)
+rm -rf ~/.akash
+
+# 3. Remove the alias block from your shell config
+# Edit ~/.bashrc, ~/.zshrc, or $PROFILE and delete the block between:
+# BEGIN akash aliases ... END akash aliases
 ```
 
 ## Usage
@@ -262,7 +294,56 @@ src/
 | tracing            | Structured logging   |
 | sysinfo            | Process detection    |
 
+## Troubleshooting
+
+### Aliases not working after `apply`
+
+Make sure to reload your shell configuration:
+
+```bash
+source ~/.bashrc   # Bash
+source ~/.zshrc    # Zsh
+. $PROFILE         # PowerShell
+```
+
+Or simply restart your terminal.
+
+### Wrong shell detected
+
+Use the `--shell` flag to override detection:
+
+```bash
+aka --shell bash apply
+aka -s zsh list
+```
+
+### Permission denied on config file
+
+Ensure you have write permissions to your shell's config file:
+
+```bash
+ls -la ~/.bashrc   # Check permissions
+chmod u+w ~/.bashrc # Add write permission if needed
+```
+
+### Aliases not persisting
+
+Check that your alias store exists and is valid JSON:
+
+```bash
+cat ~/.akash/aliases.json
+```
+
+If corrupted, you can reset it:
+
+```bash
+rm ~/.akash/aliases.json
+aka add test "echo hello"  # Creates a fresh store
+```
+
 ## Contributing
+
+Contribution is welcomed :)
 
 1. Fork the repository
 2. Create a feature branch
@@ -272,13 +353,29 @@ src/
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](./COPYRIGHT.md) for details.
 
 ## Author
 
 [Helene Nguyen](https://github.com/helene-nguyen) aka Yumi
 
+> [!NOTE]
+> This project is a personal side project and not affiliated with any company or organization. I've created this for my own usage and learning, but I hope it can be useful to others as well! ☀️
+
 ---
+
+## Why Akash?
+
+Compared to existing tools, Akash offers:
+
+| Feature              | Akash                                  | Most Alternatives        |
+| -------------------- | -------------------------------------- | ------------------------ |
+| PowerShell support   | Yes                                    | Rarely                   |
+| Cross-platform       | Windows, macOS, Linux                  | Usually Linux/macOS only |
+| Interactive mode     | Yes                                    | Varies                   |
+| Single binary        | Yes (Rust)                             | Often requires runtime   |
+| Safe config editing  | Block markers preserve existing config | Often overwrites         |
+| Shell auto-detection | Multi-method fallback                  | Basic or manual          |
 
 ## Other similar tools
 
@@ -289,8 +386,8 @@ Here are the nice existing projects with their links:
 
 #### Rust Projects
 
-| Name              | Link                                   | Description                               |
-| ----------------- | -------------------------------------- | ----------------------------------------- |
+| Name              | Link                                     | Description                               |
+| ----------------- | ---------------------------------------- | ----------------------------------------- |
 | **aliasmgr**      | <https://github.com/Faria22/aliasmgr>    | TOML config, syncs aliases, no PowerShell |
 | **rbam**          | <https://crates.io/crates/rbam>          | Bash Alias Manager, simple, Bash only     |
 | **alias-manager** | <https://crates.io/crates/alias-manager> | Index-based command picker, Linux only    |
@@ -300,16 +397,16 @@ Here are the nice existing projects with their links:
 
 #### Go Projects
 
-| Name         | Link                                 | Description                              |
-| ------------ | ------------------------------------ | ---------------------------------------- |
+| Name         | Link                                   | Description                              |
+| ------------ | -------------------------------------- | ---------------------------------------- |
 | **aliasctl** | <https://github.com/aliasctl/aliasctl> | Full-featured, AI-powered, all platforms |
 
 ---
 
 #### Shell Script Projects
 
-| Name              | Link                                           | Description                         |
-| ----------------- | ---------------------------------------------- | ----------------------------------- |
+| Name              | Link                                             | Description                         |
+| ----------------- | ------------------------------------------------ | ----------------------------------- |
 | **aliasman**      | <https://github.com/BeyondCodeBootcamp/aliasman> | Bash, Zsh, Fish support, no Windows |
 | **alf**           | <https://github.com/DannyBen/alf>                | Bash Alias Generator, Bash/Zsh only |
 | **alias_manager** | <https://github.com/KazeTachinuu/alias_manager>  | Lightweight, Linux/macOS only       |
