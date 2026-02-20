@@ -2,10 +2,11 @@ use anyhow::Result;
 use colored::Colorize;
 use std::io::{ self, BufRead, Write };
 
+use crate::config::Config;
 use crate::shell::Shell;
 use crate::store::{ AliasStore };
 
-pub fn run(shell: &dyn Shell) -> Result<()> {
+pub fn run(config: &Config ,shell: &dyn Shell) -> Result<()> {
     println!("{}", r#" .--..--..--..--..--..--..--..--..--..--..--..--..--. 
 / .. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \
 \ \/\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ \/ /
@@ -40,15 +41,15 @@ pub fn run(shell: &dyn Shell) -> Result<()> {
         let choice = input.trim();
 
         match choice {
-            "1" => interactive_add()?,
-            "2" => interactive_remove()?,
-            "3" => interactive_list()?,
+            "1" => interactive_add(config)?,
+            "2" => interactive_remove(config)?,
+            "3" => interactive_list(config)?,
             "4" => {
                 // Reuse the cmd_apply logic from main
-                crate::cmd_apply(shell)?;
+                crate::cmd_apply(config, shell)?;
             }
             "5" => {
-                crate::cmd_init(shell)?;
+                crate::cmd_init(config, shell)?;
             }
             "q" | "Q" | "quit" | "exit" => {
                 println!("Goodbye!");
@@ -69,7 +70,7 @@ fn prompt(label: &str) -> Result<String> {
     Ok(input.trim().to_string())
 }
 
-fn interactive_add() -> Result<()> {
+fn interactive_add(config: &Config) -> Result<()> {
     let name = prompt("Alias name")?;
     let command = prompt("Command")?;
 
@@ -80,9 +81,9 @@ fn interactive_add() -> Result<()> {
 
     AliasStore::validate_alias_name(&name)?;
 
-    let mut store = AliasStore::store_load()?;
+    let mut store = AliasStore::store_load(config.aliases_path.as_ref())?;
     let is_new = store.add_alias(name.clone(), command.clone());
-    store.store_save()?;
+    store.store_save(config.aliases_path.as_ref())?;
 
     if is_new {
         println!("{} {} -> {}", "Added:".green(), name.bold(), command);
@@ -92,7 +93,7 @@ fn interactive_add() -> Result<()> {
     Ok(())
 }
 
-fn interactive_remove() -> Result<()> {
+fn interactive_remove(config: &Config) -> Result<()> {
     let name = prompt("Alias name to remove")?;
 
     if name.is_empty() {
@@ -100,9 +101,9 @@ fn interactive_remove() -> Result<()> {
         return Ok(());
     }
 
-    let mut store = AliasStore::store_load()?;
+    let mut store = AliasStore::store_load(config.aliases_path.as_ref())?;
     if store.remove_alias(&name) {
-        store.store_save()?;
+        store.store_save(config.aliases_path.as_ref())?;
         println!("{} {}", "Removed:".green(), name.bold());
     } else {
         println!("{} alias '{}' not found", "Error:".red(), name);
@@ -110,8 +111,8 @@ fn interactive_remove() -> Result<()> {
     Ok(())
 }
 
-fn interactive_list() -> Result<()> {
-    let store = AliasStore::store_load()?;
+fn interactive_list(config: &Config) -> Result<()> {
+    let store = AliasStore::store_load(config.aliases_path.as_ref())?;
     let aliases = store.list_aliases();
 
     if aliases.is_empty() {

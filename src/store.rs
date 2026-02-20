@@ -1,4 +1,4 @@
-use anyhow::{ anyhow, Context, Result };
+use anyhow::{ Context, Result };
 use serde::{ Deserialize, Serialize };
 use std::collections::BTreeMap;
 use std::path::{ PathBuf };
@@ -21,16 +21,21 @@ impl AliasStore {
 
     /// Path to the JSON file where aliases are stored.
     /// Store to: ~/.akash/aliases.json
-    pub fn store_path() -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory!"))?;
+    pub fn store_path(custom_path: Option<&PathBuf>) -> Result<PathBuf> {
+        if let Some(path) = custom_path {
+            debug!("Using custom aliases path: {}", path.display());
+            return Ok(path.clone());
+        }
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
         let path = home.join(".akash").join("aliases.json");
-        debug!("Alias store path: {:?}", path);
+        debug!("Alias store path: {}", path.display());
         Ok(path)
     }
 
     /// Load the store from disk, or create a new one if it doesn't exist.
-    pub fn store_load() -> Result<Self> {
-        let path = Self::store_path()?;
+    pub fn store_load(custom_path: Option<&PathBuf>) -> Result<Self> {
+        let path = Self::store_path(custom_path)?;
 
         // If the file doesn't exist, we start with an empty store. This allows us to create aliases without needing a pre-existing file.
         if !path.exists() {
@@ -52,8 +57,8 @@ impl AliasStore {
     }
 
     /// Save the store to disk, creating the directory if it doesn't exist.
-    pub fn store_save(&self) -> Result<()> {
-        let path = Self::store_path()?;
+    pub fn store_save(&self, custom_path: Option<&PathBuf>) -> Result<()> {
+        let path = Self::store_path(custom_path)?;
 
         if let Some(parent) = path.parent() {
             std::fs

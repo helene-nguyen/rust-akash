@@ -2,28 +2,39 @@ mod shell;
 mod store;
 mod cli;
 mod interactive;
+mod config;
 
 use anyhow::{ Context, Result };
 use clap::Parser;
 use colored::Colorize;
 use shell::Shell;
 use store::{ AliasStore };
-use tracing::Level;
+use config::Config;
 
 fn main() -> Result<()> {
+    // Load config first (before tracing, since it controls log level)
+    let config = Config::load()?;
+
     // Initialize tracing (adjust based on your setup)
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(config.tracing_level())
+        .init();
 
     let cli = cli::Cli::parse();
-    let shell = shell::get_shell(cli.shell)?;
+    let shell_override = cli.shell.or_else(|| {
+        config.shell.as_deref()
+            .and_then(|s| s.parse().ok())
+    });
+
+    let shell = shell::get_shell(shell_override)?;
 
     match cli.command {
-        Some(cli::Command::Add { name, command }) => cmd_add(&name, &command)?,
-        Some(cli::Command::Remove { name }) => cmd_remove(&name, shell.as_ref())?,
-        Some(cli::Command::List) => cmd_list()?,
-        Some(cli::Command::Apply) => cmd_apply(shell.as_ref())?,
-        Some(cli::Command::Init) => cmd_init(shell.as_ref())?,
-        None => interactive::run(shell.as_ref())?,
+        Some(cli::Command::Add { name, command }) => cmd_add(&config, &name, &command)?,
+        Some(cli::Command::Remove { name }) => cmd_remove(&config, &name, shell.as_ref())?,
+        Some(cli::Command::List) => cmd_list(&config)?,
+        Some(cli::Command::Apply) => cmd_apply(&config, shell.as_ref())?,
+        Some(cli::Command::Init) => cmd_init(&config, shell.as_ref())?,
+        None => interactive::run(&config, shell.as_ref())?,
     }
 
     Ok(())
@@ -33,17 +44,17 @@ fn main() -> Result<()> {
 // COMMANDS
 // ============================================================================
 
-fn cmd_add(name: &str, command: &str) -> Result<()> {
+fn cmd_add(config: &Config, name: &str, command: &str) -> Result<()> {
     AliasStore::validate_alias_name(name)?;
 
-    let mut store = AliasStore::store_load()?;
+    let mut store = AliasStore::store_load(config.aliases_path.as_ref())?;
 
     if store.has_key(name) {
         println!("{} alias '{}' already exists, overwriting", "Warning:".yellow(), name);
     }
 
     let is_new = store.add_alias(name.to_string(), command.to_string());
-    store.store_save()?;
+    store.store_save(config.aliases_path.as_ref())?;
 
     if is_new {
         println!("{} {} -> {}", "Added:".green(), name.bold(), command);
@@ -54,21 +65,21 @@ fn cmd_add(name: &str, command: &str) -> Result<()> {
     Ok(())
 }
 
-fn cmd_remove(name: &str, shell: &dyn Shell) -> Result<()> {
-    let mut store = AliasStore::store_load()?;
+fn cmd_remove(config: &Config, name: &str, shell: &dyn Shell) -> Result<()> {
+    let mut store = AliasStore::store_load(config.aliases_path.as_ref())?;
 
     if store.remove_alias(name) {
-        store.store_save()?;
+        store.store_save(config.aliases_path.as_ref())?;
         println!("{} {}", "Removed:".green(), name.bold());
-        cmd_apply(shell)?;
+        cmd_apply(config, shell)?;
     } else {
         println!("{} alias '{}' not found", "Error:".red(), name);
     }
     Ok(())
 }
 
-fn cmd_list() -> Result<()> {
-    let store = AliasStore::store_load()?;
+fn cmd_list(config: &Config) -> Result<()> {
+    let store = AliasStore::store_load(config.aliases_path.as_ref())?;
     let aliases = store.list_aliases();
 
     if aliases.is_empty() {
@@ -90,8 +101,8 @@ fn cmd_list() -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_apply(shell: &dyn Shell) -> Result<()> {
-    let store = AliasStore::store_load()?;
+pub fn cmd_apply(config: &Config, shell: &dyn Shell) -> Result<()> {
+    let store = AliasStore::store_load(config.aliases_path.as_ref())?;
     let aliases = store.list_aliases();
 
     let block = shell.generate_alias_block(aliases);
@@ -141,8 +152,8 @@ pub fn cmd_apply(shell: &dyn Shell) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_init(shell: &dyn Shell) -> Result<()> {
-    cmd_apply(shell)?;
+pub fn cmd_init(config: &Config, shell: &dyn Shell) -> Result<()> {
+    cmd_apply(config, shell)?;
     println!("\n{} akash initialized for {}.", "Ready!".green().bold(), shell.name().bold());
     println!("Your aliases will be loaded when you open a new {} session.", shell.name());
     Ok(())
