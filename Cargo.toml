@@ -18,3 +18,11 @@ serde_json = "1.0.149"
 sysinfo = "0.38.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["json"] }
+
+[[bin]]
+name = "akash"
+path = "src/main.rs"
+
+[[bin]]
+name = "aka"
+path = "src/main.rs"
