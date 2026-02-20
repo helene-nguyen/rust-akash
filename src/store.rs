@@ -126,7 +126,7 @@ impl AliasStore {
             anyhow::bail!("Alias name cannot be empty!");
         }
 
-        if !alias_name.chars().all(|c| (c.is_alphanumeric() || c == '_' || c == '-')) {
+        if !alias_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
             debug!("Alias name validation failed: '{}' contains invalid characters", alias_name);
             anyhow::bail!(
                 "Alias name can only contain alphanumeric characters, underscores, or hyphens!"
@@ -142,83 +142,153 @@ impl AliasStore {
 mod tests {
     use super::*;
 
+    // --- new_store ---
+
     #[test]
-    fn new_store_is_empty() {
+    fn given_nothing_when_creating_new_store_then_it_is_empty() {
+        // Given
+        // (no preconditions)
+
+        // When
         let store = AliasStore::new_store();
+
+        // Then
         assert!(store.aliases.is_empty());
     }
 
+    // --- add_alias ---
+
     #[test]
-    fn add_alias_returns_true_for_new() {
+    fn given_empty_store_when_adding_alias_then_returns_true() {
+        // Given
         let mut store = AliasStore::new_store();
-        assert!(store.add_alias("gs".into(), "git status".into()));
+
+        // When
+        let result = store.add_alias("gs".into(), "git status".into());
+
+        // Then
+        assert!(result);
     }
 
     #[test]
-    fn add_alias_returns_false_for_existing() {
+    fn given_existing_alias_when_adding_same_name_then_returns_false() {
+        // Given
         let mut store = AliasStore::new_store();
         store.add_alias("gs".into(), "git status".into());
-        assert!(!store.add_alias("gs".into(), "git stash".into()));
+
+        // When
+        let result = store.add_alias("gs".into(), "git stash".into());
+
+        // Then
+        assert!(!result);
     }
 
     #[test]
-    fn add_alias_updates_value() {
+    fn given_existing_alias_when_adding_same_name_then_command_is_updated() {
+        // Given
         let mut store = AliasStore::new_store();
         store.add_alias("gs".into(), "git status".into());
+
+        // When
         store.add_alias("gs".into(), "git stash".into());
+
+        // Then
         assert_eq!(store.aliases["gs"], "git stash");
     }
 
+    // --- remove_alias ---
+
     #[test]
-    fn remove_alias_returns_true_when_found() {
+    fn given_existing_alias_when_removing_it_then_returns_true_and_store_is_empty() {
+        // Given
         let mut store = AliasStore::new_store();
         store.add_alias("gs".into(), "git status".into());
-        assert!(store.remove_alias("gs"));
+
+        // When
+        let result = store.remove_alias("gs");
+
+        // Then
+        assert!(result);
         assert!(store.aliases.is_empty());
     }
 
     #[test]
-    fn remove_alias_returns_false_when_not_found() {
+    fn given_empty_store_when_removing_alias_then_returns_false() {
+        // Given
         let mut store = AliasStore::new_store();
-        assert!(!store.remove_alias("nonexistent"));
+
+        // When
+        let result = store.remove_alias("nonexistent");
+
+        // Then
+        assert!(!result);
     }
 
+    // --- has_key ---
+
     #[test]
-    fn has_key_finds_existing_alias() {
+    fn given_existing_alias_when_checking_has_key_then_returns_true() {
+        // Given
         let mut store = AliasStore::new_store();
         store.add_alias("gs".into(), "git status".into());
-        assert!(store.has_key("gs"));
+
+        // When
+        let result = store.has_key("gs");
+
+        // Then
+        assert!(result);
     }
 
     #[test]
-    fn has_key_returns_false_for_missing() {
+    fn given_empty_store_when_checking_has_key_then_returns_false() {
+        // Given
         let store = AliasStore::new_store();
-        assert!(!store.has_key("nope"));
+
+        // When
+        let result = store.has_key("nope");
+
+        // Then
+        assert!(!result);
     }
 
+    // --- list_aliases ---
+
     #[test]
-    fn list_aliases_returns_all() {
+    fn given_two_aliases_when_listing_then_returns_both_with_correct_values() {
+        // Given
         let mut store = AliasStore::new_store();
         store.add_alias("a".into(), "alpha".into());
         store.add_alias("b".into(), "bravo".into());
+
+        // When
         let list = store.list_aliases();
+
+        // Then
         assert_eq!(list.len(), 2);
         assert_eq!(list["a"], "alpha");
         assert_eq!(list["b"], "bravo");
     }
 
     #[test]
-    fn list_aliases_is_sorted() {
+    fn given_unordered_aliases_when_listing_then_keys_are_sorted() {
+        // Given
         let mut store = AliasStore::new_store();
         store.add_alias("z".into(), "zulu".into());
         store.add_alias("a".into(), "alpha".into());
         store.add_alias("m".into(), "mike".into());
+
+        // When
         let keys: Vec<&String> = store.list_aliases().keys().collect();
+
+        // Then
         assert_eq!(keys, vec!["a", "m", "z"]);
     }
 
+    // --- validate_alias_name ---
+
     #[test]
-    fn validate_alias_name_accepts_valid() {
+    fn given_valid_names_when_validating_then_all_pass() {
+        // Given / When / Then
         assert!(AliasStore::validate_alias_name("gs").is_ok());
         assert!(AliasStore::validate_alias_name("my-alias").is_ok());
         assert!(AliasStore::validate_alias_name("my_alias").is_ok());
@@ -226,12 +296,20 @@ mod tests {
     }
 
     #[test]
-    fn validate_alias_name_rejects_empty() {
-        assert!(AliasStore::validate_alias_name("").is_err());
+    fn given_empty_name_when_validating_then_returns_error() {
+        // Given
+        let name = "";
+
+        // When
+        let result = AliasStore::validate_alias_name(name);
+
+        // Then
+        assert!(result.is_err());
     }
 
     #[test]
-    fn validate_alias_name_rejects_invalid_chars() {
+    fn given_names_with_invalid_chars_when_validating_then_returns_error() {
+        // Given / When / Then
         assert!(AliasStore::validate_alias_name("has space").is_err());
         assert!(AliasStore::validate_alias_name("has!bang").is_err());
         assert!(AliasStore::validate_alias_name("a/b").is_err());
