@@ -2,22 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v0.1.0] - 2026-02-21
-
-<!-- Release notes generated using configuration in .github/release.yml at v0.1.0 -->
-
 ## What's Changed
-### Other Changes
-* Update CHANGELOG for v0.1.0 by @github-actions[bot] in https://github.com/helene-nguyen/rust-akash/pull/1
-
-## New Contributors
-* @github-actions[bot] made their first contribution in https://github.com/helene-nguyen/rust-akash/pull/1
-
-**Full Changelog**: https://github.com/helene-nguyen/rust-akash/commits/v0.1.0
-
-
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] - 2026-02-21
 
