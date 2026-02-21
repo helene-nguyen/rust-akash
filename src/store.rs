@@ -62,7 +62,7 @@ impl AliasStore {
         let path = Self::store_path(custom_path)?;
 
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(&parent).with_context(|| {
+            std::fs::create_dir_all(parent).with_context(|| {
                 format!(
                     "Failed to create directory for alias store at {}",
                     parent.display()
