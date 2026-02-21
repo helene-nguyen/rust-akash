@@ -1,0 +1,78 @@
+# .github/workflows/auto-release.yml
+name: Auto Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # Required to push commits/tags
+  pull-requests: write  # If creating PRs
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Create Release
+        id: create_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes
+
+          # Get release notes
+          gh release view ${{ github.ref_name }} --json body --jq '.body' > release_notes.txt
+
+      - name: Update CHANGELOG.md
+        run: |
+          # Get the release body
+          RELEASE_BODY=$(cat release_notes.txt)
+          RELEASE_DATE=$(date +'%Y-%m-%d')
+
+          # Create new changelog entry
+          NEW_ENTRY="## [${{ github.ref_name }}] - $RELEASE_DATE
+
+          $RELEASE_BODY
+
+          "
+
+          # Check if CHANGELOG.md exists
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          # Insert new entry after the header
+          awk -v new="$NEW_ENTRY" '
+            BEGIN { inserted=0 }
+            /^# Changelog/ { print; next }
+            /^All notable changes/ { print; print ""; print new; inserted=1; next }
+            { print }
+          ' CHANGELOG.md > CHANGELOG.tmp
+
+          mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Create Changelog Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: "docs: update CHANGELOG for ${{ github.ref_name }}"
+          title: "Update CHANGELOG for ${{ github.ref_name }}"
+          branch: changelog-update-${{ github.ref_name }}
+          base: main
+          delete-branch: true
+          body: |
+            Automated changelog update for release ${{ github.ref_name }}
+
+            This PR was automatically created by the release workflow.
