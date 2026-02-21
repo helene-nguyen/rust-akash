@@ -278,7 +278,7 @@ Tests use Gherkin-style naming (`given_X_when_Y_then_Z`) for clarity.
 
 ### Project Structure
 
-```
+```sh
 src/
 ├── main.rs           # Entry point and command handlers
 ├── cli.rs            # CLI argument parsing (clap)
