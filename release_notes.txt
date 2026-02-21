@@ -1,0 +1,5 @@
+<!-- Release notes generated using configuration in .github/release.yml at v0.1.0 -->
+
+
+
+**Full Changelog**: https://github.com/helene-nguyen/rust-akash/commits/v0.1.0
