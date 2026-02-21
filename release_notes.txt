@@ -1,10 +1,15 @@
 <!-- Release notes generated using configuration in .github/release.yml at v0.1.0 -->
 
 ## What's Changed
-### Other Changes
-* Update CHANGELOG for v0.1.0 by @github-actions[bot] in https://github.com/helene-nguyen/rust-akash/pull/1
 
-## New Contributors
-* @github-actions[bot] made their first contribution in https://github.com/helene-nguyen/rust-akash/pull/1
+## akash v0.1.0 — Initial Release
 
-**Full Changelog**: https://github.com/helene-nguyen/rust-akash/commits/v0.1.0
+First public release of akash, a cross-platform CLI tool for managing shell aliases.
+
+### Highlights
+
+- **One store, any shell** — Define aliases once in JSON, apply to PowerShell, Bash or Zsh
+- **Auto-detection** — Detects your shell automatically, override with `--shell`
+- **Safe config editing** — Block markers prevent overwriting your existing shell config
+- **Interactive mode** — Menu-driven interface when run without arguments
+- **Dual binary** — Use `akash` or `aka`
