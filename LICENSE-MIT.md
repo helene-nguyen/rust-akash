@@ -1,4 +1,4 @@
-AKASH - A simple CLI alias manager for Windows, Linux, and macOS.
+# AKASH - A simple CLI alias manager for Windows, Linux, and macOS
 
 The MIT License (MIT)
 

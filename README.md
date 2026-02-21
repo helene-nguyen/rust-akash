@@ -392,7 +392,7 @@ Compared to existing tools, Akash offers:
 
 Here are the nice existing projects with their links:
 
-#### Rust Projects
+### Rust Projects
 
 | Name              | Link                                     | Description                               |
 | ----------------- | ---------------------------------------- | ----------------------------------------- |
@@ -403,7 +403,7 @@ Here are the nice existing projects with their links:
 
 ---
 
-#### Go Projects
+### Go Projects
 
 | Name         | Link                                   | Description                              |
 | ------------ | -------------------------------------- | ---------------------------------------- |
@@ -411,7 +411,7 @@ Here are the nice existing projects with their links:
 
 ---
 
-#### Shell Script Projects
+### Shell Script Projects
 
 | Name              | Link                                             | Description                         |
 | ----------------- | ------------------------------------------------ | ----------------------------------- |

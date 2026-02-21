@@ -27,3 +27,8 @@ path = "src/main.rs"
 [[bin]]
 name = "aka"
 path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

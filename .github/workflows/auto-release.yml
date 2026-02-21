@@ -9,11 +9,112 @@ on:
 permissions:
   contents: write  # Required to push commits/tags
   pull-requests: write  # If creating PRs
+  packages: write # For GitHub Releases
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  # =============================================
+  # Job 1: Build binaries for all platforms
+  # =============================================
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: akash-linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: akash-windows-x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: akash-macos-x86_64
 
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../${{ matrix.artifact }}.tar.gz akash aka
+          cd ../../..
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ matrix.artifact }}.zip akash.exe aka.exe
+          cd ../../..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.zip
+
+# =============================================
+  # Job 2: Build & Push Docker image
+  # =============================================
+  docker:
+    name: Docker (Docker Hub + GHCR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/akash:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/akash:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/akash:latest
+            ghcr.io/${{ github.repository_owner }}/akash:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =============================================
+  # Job 3: Create GitHub Release with binaries
+  # =============================================
+  release:
+    name: Create Release
+    needs: [build, docker]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,58 +122,88 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Create Release
-        id: create_release
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/*
+
+  # =============================================
+  # Job 4: Version bump + CHANGELOG update via PR
+  # =============================================
+  post-release:
+    name: Post-Release Updates
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i "s/^version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" Cargo.toml
+          echo "Updated Cargo.toml to version ${{ steps.version.outputs.version }}"
+          grep "^version" Cargo.toml
+
+      - name: Update CHANGELOG.md
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ github.ref_name }} \
-            --title "Release ${{ github.ref_name }}" \
-            --generate-notes
-
-          # Get release notes
-          gh release view ${{ github.ref_name }} --json body --jq '.body' > release_notes.txt
-
-      - name: Update CHANGELOG.md
-        run: |
-          # Get the release body
-          RELEASE_BODY=$(cat release_notes.txt)
           RELEASE_DATE=$(date +'%Y-%m-%d')
 
-          # Create new changelog entry
-          NEW_ENTRY="## [${{ github.ref_name }}] - $RELEASE_DATE
+          # Get release notes from GitHub
+          RELEASE_BODY=$(gh release view ${{ github.ref_name }} --json body --jq '.body')
+
+          NEW_ENTRY="## [${{ steps.version.outputs.version }}] - $RELEASE_DATE
 
           $RELEASE_BODY
-
           "
 
-          # Check if CHANGELOG.md exists
-          if [ ! -f CHANGELOG.md ]; then
+          # Insert after header lines
+          if [ -f CHANGELOG.md ]; then
+            awk -v new="$NEW_ENTRY" '
+              BEGIN { inserted=0 }
+              /^# Changelog/ { print; next }
+              /^All notable changes/ { print; print ""; print new; inserted=1; next }
+              { print }
+            ' CHANGELOG.md > CHANGELOG.tmp
+            mv CHANGELOG.tmp CHANGELOG.md
+          else
             echo "# Changelog" > CHANGELOG.md
             echo "" >> CHANGELOG.md
             echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
             echo "" >> CHANGELOG.md
+            echo "$NEW_ENTRY" >> CHANGELOG.md
           fi
 
-          # Insert new entry after the header
-          awk -v new="$NEW_ENTRY" '
-            BEGIN { inserted=0 }
-            /^# Changelog/ { print; next }
-            /^All notable changes/ { print; print ""; print new; inserted=1; next }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.tmp
-
-          mv CHANGELOG.tmp CHANGELOG.md
-
-      - name: Create Changelog Pull Request
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
-          commit-message: "docs: update CHANGELOG for ${{ github.ref_name }}"
-          title: "Update CHANGELOG for ${{ github.ref_name }}"
-          branch: changelog-update-${{ github.ref_name }}
+          commit-message: ":bookmark: chore: bump version to ${{ steps.version.outputs.version }} + update CHANGELOG"
+          title: "Bump version to ${{ steps.version.outputs.version }}"
+          branch: post-release-${{ github.ref_name }}
           base: main
           delete-branch: true
           body: |
-            Automated changelog update for release ${{ github.ref_name }}
+            Automated post-release updates for ${{ github.ref_name }}:
+
+            - Updated `version` in `Cargo.toml` to `${{ steps.version.outputs.version }}`
+            - Updated `CHANGELOG.md` with release notes
 
             This PR was automatically created by the release workflow.
