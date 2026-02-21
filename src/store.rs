@@ -1,8 +1,8 @@
-use anyhow::{ Context, Result };
-use serde::{ Deserialize, Serialize };
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::{ PathBuf };
-use tracing::{ info, debug };
+use std::path::PathBuf;
+use tracing::{debug, info};
 
 /// JSON schema: {aliases: {alias_name: command, ...}}
 /// BTreeMap is used to maintain sorted order of aliases for consistent display and testing.
@@ -39,17 +39,18 @@ impl AliasStore {
 
         // If the file doesn't exist, we start with an empty store. This allows us to create aliases without needing a pre-existing file.
         if !path.exists() {
-            debug!("No aliases file found at {}, starting fresh", path.display());
+            debug!(
+                "No aliases file found at {}, starting fresh",
+                path.display()
+            );
             return Ok(Self::new_store());
         }
 
         // .with_context() adds the file path to the error message if reading fails, making it easier to debug issues related to file access.
-        let content = std::fs
-            ::read_to_string(&path)
+        let content = std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read alias store from {}", path.display()))?;
 
-        let store: Self = serde_json
-            ::from_str(&content)
+        let store: Self = serde_json::from_str(&content)
             .with_context(|| format!("Failed to parse alias store JSON from {}", path.display()))?;
 
         debug!("Loaded alias store with {} aliases", store.aliases.len());
@@ -61,19 +62,18 @@ impl AliasStore {
         let path = Self::store_path(custom_path)?;
 
         if let Some(parent) = path.parent() {
-            std::fs
-                ::create_dir_all(&parent)
-                .with_context(||
-                    format!("Failed to create directory for alias store at {}", parent.display())
-                )?;
+            std::fs::create_dir_all(&parent).with_context(|| {
+                format!(
+                    "Failed to create directory for alias store at {}",
+                    parent.display()
+                )
+            })?;
         }
 
-        let content = serde_json
-            ::to_string_pretty(self)
+        let content = serde_json::to_string_pretty(self)
             .context("Failed to serialize alias store to JSON")?;
 
-        std::fs
-            ::write(&path, content)
+        std::fs::write(&path, content)
             .with_context(|| format!("Failed to write alias store to {}", path.display()))?;
 
         // Debug displays: {"level":"DEBUG", "message":"Saved alias store with N aliases", "path":"/home/user/.akash/aliases.json"}
@@ -115,11 +115,15 @@ impl AliasStore {
     /// Check if an alias exists.
     pub fn has_key(&self, alias_name: &str) -> bool {
         let exists = self.aliases.contains_key(alias_name);
-        info!("Checking alias '{}': {}", alias_name, if exists {
-            "Alias found"
-        } else {
-            "Alias not found"
-        });
+        info!(
+            "Checking alias '{}': {}",
+            alias_name,
+            if exists {
+                "Alias found"
+            } else {
+                "Alias not found"
+            }
+        );
         exists
     }
 
@@ -131,8 +135,14 @@ impl AliasStore {
             anyhow::bail!("Alias name cannot be empty!");
         }
 
-        if !alias_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-            debug!("Alias name validation failed: '{}' contains invalid characters", alias_name);
+        if !alias_name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            debug!(
+                "Alias name validation failed: '{}' contains invalid characters",
+                alias_name
+            );
             anyhow::bail!(
                 "Alias name can only contain alphanumeric characters, underscores, or hyphens!"
             );

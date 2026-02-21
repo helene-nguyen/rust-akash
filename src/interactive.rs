@@ -1,13 +1,15 @@
 use anyhow::Result;
 use colored::Colorize;
-use std::io::{ self, BufRead, Write };
+use std::io::{self, BufRead, Write};
 
 use crate::config::Config;
 use crate::shell::Shell;
-use crate::store::{ AliasStore };
+use crate::store::AliasStore;
 
-pub fn run(config: &Config ,shell: &dyn Shell) -> Result<()> {
-    println!("{}", r#" .--..--..--..--..--..--..--..--..--..--..--..--..--. 
+pub fn run(config: &Config, shell: &dyn Shell) -> Result<()> {
+    println!(
+        "{}",
+        r#" .--..--..--..--..--..--..--..--..--..--..--..--..--. 
 / .. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \
 \ \/\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ \/ /
  \/ /`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'\/ / 
@@ -22,7 +24,9 @@ pub fn run(config: &Config ,shell: &dyn Shell) -> Result<()> {
  / /\.--..--..--..--..--..--..--..--..--..--..--./ /\ 
 / /\ \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \/\ \
 \ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `' /
- `--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--' "#.bold());
+ `--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--' "#
+            .bold()
+    );
     println!("Detected shell: {}\n", shell.name().cyan());
 
     loop {
@@ -120,15 +124,16 @@ fn interactive_list(config: &Config) -> Result<()> {
         return Ok(());
     }
 
-    let max_len = aliases
-        .keys()
-        .map(|k| k.len())
-        .max()
-        .unwrap_or(0);
+    let max_len = aliases.keys().map(|k| k.len()).max().unwrap_or(0);
 
     println!("{}", "Aliases:".bold());
     for (name, command) in aliases {
-        println!("  {:width$}  ->  {}", name.green(), command, width = max_len);
+        println!(
+            "  {:width$}  ->  {}",
+            name.green(),
+            command,
+            width = max_len
+        );
     }
     Ok(())
 }

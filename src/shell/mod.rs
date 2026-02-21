@@ -1,7 +1,7 @@
 mod unix;
 mod windows;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use sysinfo::{Pid, Process, System};
@@ -95,11 +95,13 @@ impl std::str::FromStr for ShellType {
             "bash" | "git-bash" => Ok(Self::Bash),
             "zsh" => Ok(Self::Zsh),
             "powershell" | "pwsh" => Ok(Self::PowerShell),
-            _ => anyhow::bail!("Unsupported shell: '{}'. Supported: bash, zsh, powershell", input),
+            _ => anyhow::bail!(
+                "Unsupported shell: '{}'. Supported: bash, zsh, powershell",
+                input
+            ),
         }
     }
 }
-
 
 // ============================================================================
 // DETECTION: Parent Process
@@ -158,7 +160,6 @@ fn detect_from_parent_process() -> Option<ShellType> {
     debug!("Unknown parent process: {}", parent_name);
     None
 }
-
 
 // ============================================================================
 // DETECTION: Environment Variables

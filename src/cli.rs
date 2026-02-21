@@ -1,5 +1,5 @@
-use clap::{Parser, Subcommand};
 use crate::shell::ShellType;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(

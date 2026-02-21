@@ -1,4 +1,4 @@
-use anyhow::{ Context, Result };
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::PathBuf;
 use tracing::debug;
@@ -40,13 +40,11 @@ impl Config {
         }
 
         if let Some(parent) = path.parent() {
-            std::fs
-                ::create_dir_all(parent)
+            std::fs::create_dir_all(parent)
                 .with_context(|| format!("Failed to create directory {}", parent.display()))?;
         }
 
-        let default_content =
-            r#"# Akash configuration file
+        let default_content = r#"# Akash configuration file
 # Override default shell detection
 # Possible values: bash, zsh, powershell
 # shell = "powershell"
@@ -55,8 +53,7 @@ impl Config {
 log_level = "warn"
             "#;
 
-        std::fs
-            ::write(&path, default_content)
+        std::fs::write(&path, default_content)
             .with_context(|| format!("Failed to write {}", path.display()))?;
 
         debug!("Created default config at {}", path.display());
@@ -64,9 +61,8 @@ log_level = "warn"
     }
 
     pub fn path() -> Result<PathBuf> {
-        let home = dirs
-            ::home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
         Ok(home.join(".akash").join("config.toml"))
     }
 
@@ -78,12 +74,10 @@ log_level = "warn"
             return Ok(Self::default());
         }
 
-        let content = std::fs
-            ::read_to_string(&path)
+        let content = std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
 
-        let config: Self = toml
-            ::from_str(&content)
+        let config: Self = toml::from_str(&content)
             .with_context(|| format!("Failed to parse {}", path.display()))?;
 
         debug!("Loaded config from {}", path.display());

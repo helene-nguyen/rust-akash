@@ -1,15 +1,15 @@
+mod cli;
+mod config;
+mod interactive;
 mod shell;
 mod store;
-mod cli;
-mod interactive;
-mod config;
 
-use anyhow::{ Context, Result };
+use anyhow::{Context, Result};
 use clap::Parser;
 use colored::Colorize;
-use shell::Shell;
-use store::{ AliasStore };
 use config::Config;
+use shell::Shell;
+use store::AliasStore;
 
 fn main() -> Result<()> {
     // Create config file if missing (before loading or running any commands)
@@ -23,10 +23,9 @@ fn main() -> Result<()> {
         .init();
 
     let cli = cli::Cli::parse();
-    let shell_override = cli.shell.or_else(|| {
-        config.shell.as_deref()
-            .and_then(|s| s.parse().ok())
-    });
+    let shell_override = cli
+        .shell
+        .or_else(|| config.shell.as_deref().and_then(|s| s.parse().ok()));
 
     let shell = shell::get_shell(shell_override)?;
 
@@ -52,7 +51,11 @@ fn cmd_add(config: &Config, name: &str, command: &str) -> Result<()> {
     let mut store = AliasStore::store_load(config.aliases_path.as_ref())?;
 
     if store.has_key(name) {
-        println!("{} alias '{}' already exists, overwriting", "Warning:".yellow(), name);
+        println!(
+            "{} alias '{}' already exists, overwriting",
+            "Warning:".yellow(),
+            name
+        );
     }
 
     let is_new = store.add_alias(name.to_string(), command.to_string());
@@ -85,20 +88,24 @@ fn cmd_list(config: &Config) -> Result<()> {
     let aliases = store.list_aliases();
 
     if aliases.is_empty() {
-        println!("No aliases defined. Use {} to create one.", "akash add <name> <command>".cyan());
+        println!(
+            "No aliases defined. Use {} to create one.",
+            "akash add <name> <command>".cyan()
+        );
         return Ok(());
     }
 
     // Find the longest alias name for alignment
-    let max_len = aliases
-        .keys()
-        .map(|k| k.len())
-        .max()
-        .unwrap_or(0);
+    let max_len = aliases.keys().map(|k| k.len()).max().unwrap_or(0);
 
     println!("{}", "Aliases:".bold());
     for (name, command) in aliases {
-        println!("  {:width$}  ->  {}", name.green(), command, width = max_len);
+        println!(
+            "  {:width$}  ->  {}",
+            name.green(),
+            command,
+            width = max_len
+        );
     }
     Ok(())
 }
@@ -112,29 +119,22 @@ pub fn cmd_apply(config: &Config, shell: &dyn Shell) -> Result<()> {
 
     // Read existing config (or empty string if file doesn't exist)
     let content = if config_path.exists() {
-        std::fs
-            ::read_to_string(&config_path)
+        std::fs::read_to_string(&config_path)
             .with_context(|| format!("Failed to read {}", config_path.display()))?
     } else {
         String::new()
     };
 
-    let new_content = replace_or_append_block(
-        &content,
-        &shell.begin_marker(),
-        &shell.end_marker(),
-        &block
-    );
+    let new_content =
+        replace_or_append_block(&content, &shell.begin_marker(), &shell.end_marker(), &block);
 
     // Create parent directories if needed
     if let Some(parent) = config_path.parent() {
-        std::fs
-            ::create_dir_all(parent)
+        std::fs::create_dir_all(parent)
             .with_context(|| format!("Failed to create directory {}", parent.display()))?;
     }
 
-    std::fs
-        ::write(&config_path, new_content)
+    std::fs::write(&config_path, new_content)
         .with_context(|| format!("Failed to write {}", config_path.display()))?;
 
     println!(
@@ -145,9 +145,18 @@ pub fn cmd_apply(config: &Config, shell: &dyn Shell) -> Result<()> {
     );
 
     if aliases.is_empty() {
-        println!("{} Cleared all aliases from {}", "Done!".green().bold(), config_path.display());
+        println!(
+            "{} Cleared all aliases from {}",
+            "Done!".green().bold(),
+            config_path.display()
+        );
     } else {
-        println!("{} Wrote {} aliases to {}", "Done!".green().bold(), aliases.len(), config_path.display());
+        println!(
+            "{} Wrote {} aliases to {}",
+            "Done!".green().bold(),
+            aliases.len(),
+            config_path.display()
+        );
     }
 
     println!("{}", shell.reload_instructions().cyan());
@@ -156,8 +165,15 @@ pub fn cmd_apply(config: &Config, shell: &dyn Shell) -> Result<()> {
 
 pub fn cmd_init(config: &Config, shell: &dyn Shell) -> Result<()> {
     cmd_apply(config, shell)?;
-    println!("\n{} akash initialized for {}.", "Ready!".green().bold(), shell.name().bold());
-    println!("Your aliases will be loaded when you open a new {} session.", shell.name());
+    println!(
+        "\n{} akash initialized for {}.",
+        "Ready!".green().bold(),
+        shell.name().bold()
+    );
+    println!(
+        "Your aliases will be loaded when you open a new {} session.",
+        shell.name()
+    );
     Ok(())
 }
 
@@ -170,13 +186,9 @@ fn replace_or_append_block(
     content: &str,
     begin_marker: &str,
     end_marker: &str,
-    new_block: &str
+    new_block: &str,
 ) -> String {
-    if
-        let (Some(begin_pos), Some(end_pos)) = (
-            content.find(begin_marker),
-            content.find(end_marker),
-        )
+    if let (Some(begin_pos), Some(end_pos)) = (content.find(begin_marker), content.find(end_marker))
     {
         // Found existing block -> replace it
         let before = &content[..begin_pos];
