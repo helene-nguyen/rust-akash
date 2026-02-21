@@ -62,6 +62,12 @@ cargo build --release
 # The binary will be at target/release/akash (or akash.exe on Windows)
 ```
 
+### Install from crates
+
+```bash
+cargo install akash
+```
+
 ### Add to PATH
 
 After building, add the binary to your PATH or copy it to a directory in your PATH:
