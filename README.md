@@ -1,5 +1,6 @@
-![Akash image](./docs/media/akash.svg)
-# Aka$h_
+![Akash image](https://raw.githubusercontent.com/helene-nguyen/rust-akash/refs/heads/main/docs/media/akash.svg)
+
+# Akash
 
 > Name decomposition: **a**lso **k**nown **a**s + **sh**ell
 
