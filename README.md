@@ -12,6 +12,48 @@ Akash solves this by giving you **one place to rule them all** 💍 A single, po
 
 A cross-platform CLI tool for managing shell aliases, written in Rust.
 
+Table of Contents
+
+- [Akash](#akash)
+  - [Quick Start](#quick-start)
+  - [Features](#features)
+  - [Supported Shells](#supported-shells)
+  - [Installation](#installation)
+    - [From Source](#from-source)
+    - [Install from crates](#install-from-crates)
+    - [Add to PATH](#add-to-path)
+    - [Uninstall](#uninstall)
+  - [Usage](#usage)
+    - [Commands](#commands)
+    - [Global Flags](#global-flags)
+    - [Examples](#examples)
+  - [Interactive Mode](#interactive-mode)
+  - [How It Works](#how-it-works)
+    - [Alias Storage](#alias-storage)
+    - [Shell Config Modification](#shell-config-modification)
+    - [Shell Detection](#shell-detection)
+  - [Alias Name Rules](#alias-name-rules)
+  - [Development](#development)
+    - [Prerequisites](#prerequisites)
+    - [Building](#building)
+    - [Running Tests](#running-tests)
+    - [Project Structure](#project-structure)
+    - [Understand CI/CD pipeline](#understand-cicd-pipeline)
+  - [Dependencies](#dependencies)
+  - [Troubleshooting](#troubleshooting)
+    - [Aliases not working after `apply`](#aliases-not-working-after-apply)
+    - [Wrong shell detected](#wrong-shell-detected)
+    - [Permission denied on config file](#permission-denied-on-config-file)
+    - [Aliases not persisting](#aliases-not-persisting)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Author](#author)
+  - [Why Akash?](#why-akash)
+  - [Other similar tools](#other-similar-tools)
+    - [Rust Projects](#rust-projects)
+    - [Go Projects](#go-projects)
+    - [Shell Script Projects](#shell-script-projects)
+
 ## Quick Start
 
 ```bash
@@ -289,6 +331,15 @@ src/
     ├── unix.rs       # Bash and Zsh implementations
     └── windows.rs    # PowerShell implementation
 ```
+
+### Understand CI/CD pipeline
+
+The CI/CD and release process is documented in [Build Release Guide](docs/build-release-guide.md), covering:
+
+- GitHub Actions workflow structure
+- Build and release steps
+- Caching strategy
+- Common issues and troubleshooting tips
 
 ## Dependencies
 
