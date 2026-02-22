@@ -150,8 +150,7 @@ After the release is published:
 4. Opens a PR against `main` on branch `post-release-<tag>` using `peter-evans/create-pull-request@v5`
 5. The PR branch is auto-deleted after merge
 
-> [!NOTE]
-> **Why a PR instead of a direct push?**
+> [!NOTE] > **Why a PR instead of a direct push?**
 > When you tag `v0.2.0`, `cargo publish` publishes version `0.2.0` to crates.io, but `Cargo.toml` on `main` might still say `0.1.0`. The post-release PR syncs `main` so that `Cargo.toml` and `CHANGELOG.md` reflect what was actually released.
 >
 > A PR is preferred over a direct push because branch protection rules on `main` would block a direct push, it gives you a chance to review the auto-generated changelog before merging, and if something went wrong in the release, you can close the PR without polluting `main`.
@@ -284,7 +283,7 @@ The CI and binary build jobs use `dtolnay/rust-toolchain@stable` without additio
 | Cross-compilation fails for `aarch64`         | Missing cross-compile toolchain                           | Ensure `gcc-aarch64-linux-gnu` install step hasn't been removed                  |
 | GitHub Release creation fails                 | Insufficient permissions                                  | Verify `contents: write` is set in the workflow permissions                      |
 | Post-release PR fails                         | Branch already exists from a previous run                 | Delete the `post-release-v*` branch and re-run the job                           |
-| `ci-gate` fails with "CI has not passed"      | CI workflow did not run or did not succeed on this commit  | Push the commit to a branch first, wait for CI to pass, then tag                 |
+| `ci-gate` fails with "CI has not passed"      | CI workflow did not run or did not succeed on this commit | Push the commit to a branch first, wait for CI to pass, then tag                 |
 
 ### Rust version mismatch
 

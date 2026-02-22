@@ -48,4 +48,3 @@ git push origin "$VERSION"
 echo ""
 echo "✅ Tag $VERSION pushed. Release workflow will start shortly."
 echo "   Track it at: https://github.com/$(git remote get-url origin | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/actions"
-And in auto-release.yml, simplify the post-release job by removing the Cargo.toml update:
