@@ -36,11 +36,6 @@ git add Cargo.toml Cargo.lock
 git commit -m "$RELEASE_TITLE"
 git push origin HEAD
 
-# Wait for CI to register the commit
-echo ""
-echo "⏳ Waiting 5s for CI to pick up the commit..."
-sleep 5
-
 # Tag and push
 git tag -a "$VERSION" -m "$RELEASE_TITLE"
 git push origin "$VERSION"

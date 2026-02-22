@@ -23,23 +23,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check CI status
+      - name: Wait for CI to pass
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           SHA=$(git rev-parse HEAD)
-          echo "Checking CI for commit: $SHA"
+          echo "Waiting for CI on commit: $SHA"
 
-          gh run list \
+          RUN_ID=$(gh run list \
             --repo ${{ github.repository }} \
             --workflow ci.yml \
             --commit $SHA \
-            --json status,conclusion \
-            --jq '.[] | select(.conclusion == "success")' \
-            | grep -q "success" \
-            || (echo "::error::CI has not passed. Run CI first before tagging." && exit 1)
+            --json databaseId \
+            --jq '.[0].databaseId // empty')
 
-          echo "✅ CI passed"
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::No CI run found for this commit. Push to a branch first."
+            exit 1
+          fi
+
+          gh run watch "$RUN_ID" --repo ${{ github.repository }} --exit-status
 
   # =============================================
   # Job 2: Build binaries for all platforms
