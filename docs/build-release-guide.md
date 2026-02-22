@@ -4,22 +4,22 @@
 
 The Akash project uses a two-workflow CI/CD pipeline powered by GitHub Actions.
 
-**CI workflow** (`ci.yml`) runs on every push and pull request. It checks formatting, lints, builds across platforms, and runs tests.
+**CI workflow** (`ci.yml`) runs on every push and pull request. It checks formatting, lints, builds across platforms (Ubuntu, Windows, macOS), and runs tests on all three OS targets.
 
 **Auto Release workflow** (`auto-release.yml`) is triggered by pushing a `v*` tag and orchestrates the full release pipeline:
 
 ```
 push v* tag
   │
-  ├── [CI Checks]        ─── fmt, clippy, tests
-  ├── [Build Binaries]   ─── 5-platform matrix
+  ├── [CI Gate]          ─── verify CI workflow already passed on this commit
   │
-  ├── [Docker]           ─── multi-arch build → Docker Hub + GHCR  (needs: ci)
-  ├── [Publish]          ─── cargo publish to crates.io             (needs: build + ci)
+  ├── [Build Binaries]   ─── 5-platform matrix                      (needs: ci-gate)
+  ├── [Docker]           ─── multi-arch build → Docker Hub + GHCR   (needs: ci-gate)
   │
-  ├── [GitHub Release]   ─── attach binaries, generate notes        (needs: build + docker + ci)
+  ├── [Publish]          ─── cargo publish to crates.io              (needs: build)
+  ├── [GitHub Release]   ─── attach binaries, generate notes         (needs: build + docker)
   │
-  └── [Post-Release PR]  ─── version bump + CHANGELOG update        (needs: release)
+  └── [Post-Release PR]  ─── version bump + CHANGELOG update         (needs: release)
 ```
 
 ---
@@ -70,7 +70,7 @@ git push origin v0.2.0
 
 Once the tag is pushed, the **Auto Release** workflow:
 
-1. Runs CI checks (fmt, clippy, tests)
+1. Verifies that the CI workflow already passed on the tagged commit
 2. Builds release binaries for 5 platform targets in parallel
 3. Builds and pushes multi-arch Docker images to Docker Hub and GHCR
 4. Publishes the crate to crates.io
@@ -81,19 +81,19 @@ Once the tag is pushed, the **Auto Release** workflow:
 
 ## Pipeline Stages
 
-### Stage 1: CI Checks
+### Stage 1: CI Gate
 
-**Job:** `ci` | **Runner:** `ubuntu-latest`
+**Job:** `ci-gate` | **Runner:** `ubuntu-latest`
 
-Runs the same quality gates as the regular CI workflow, gating all downstream jobs:
+Instead of re-running CI checks, this job verifies that the CI workflow (`ci.yml`) has already passed on the tagged commit. It uses `gh run list` to query the CI workflow status for the current SHA and fails with an error if no successful run is found.
 
-- `cargo fmt --all -- --check` enforces consistent formatting
-- `cargo clippy --all-targets --all-features -- -D warnings` applies a zero-warning lint policy
-- `cargo test --all-features` runs the full test suite
+This avoids duplicating work: CI already ran when the commit was pushed to `main`, so the release pipeline only needs to confirm it passed before proceeding.
+
+All downstream jobs (`build`, `docker`) depend on `ci-gate`.
 
 ### Stage 2: Binary Builds
 
-**Job:** `build` | **Strategy:** `fail-fast: false` (all targets build even if one fails)
+**Job:** `build` | **Depends on:** `ci-gate` | **Strategy:** `fail-fast: false` (all targets build even if one fails)
 
 | OS               | Target                      | Artifact name                |
 | ---------------- | --------------------------- | ---------------------------- |
@@ -112,7 +112,7 @@ Each artifact contains two binaries: `akash` and `aka` (both entry points define
 
 ### Stage 3: Docker Build
 
-**Job:** `docker` | **Depends on:** `ci`
+**Job:** `docker` | **Depends on:** `ci-gate`
 
 Builds and pushes multi-arch images to **two** registries:
 
@@ -125,13 +125,13 @@ Uses QEMU + Docker Buildx for multi-architecture builds. See the [Dockerfile](#d
 
 ### Stage 4: Publish to crates.io
 
-**Job:** `publish` | **Depends on:** `build` + `ci`
+**Job:** `publish` | **Depends on:** `build`
 
 Runs `cargo publish` using the `CARGO_REGISTRY_TOKEN` secret. This makes the new version available via `cargo install akash`.
 
 ### Stage 5: GitHub Release
 
-**Job:** `release` | **Depends on:** `build` + `docker` + `ci`
+**Job:** `release` | **Depends on:** `build` + `docker`
 
 - Downloads all build artifacts using `actions/download-artifact@v4` with `merge-multiple: true`
 - Creates a GitHub Release via `softprops/action-gh-release@v2`
@@ -243,11 +243,11 @@ docker pull ghcr.io/<owner>/akash:0.1.0
 ### Docker Registry Cache
 
 ```yaml
-cache-from: type=registry,ref=<username>/akash:cache
-cache-to: type=registry,ref=<username>/akash:cache,mode=max
+cache-from: type=registry,ref=ghcr.io/<owner>/akash:cache
+cache-to: type=registry,ref=ghcr.io/<owner>/akash:cache,mode=max
 ```
 
-Docker build layers are cached in a dedicated `cache` tag on Docker Hub. The `mode=max` setting caches all layers (including intermediate stages), not just the final image layers. This dramatically speeds up rebuilds when only source code changes.
+Docker build layers are cached in a dedicated `cache` tag on GitHub Container Registry (GHCR). The `mode=max` setting caches all layers (including intermediate stages), not just the final image layers. This dramatically speeds up rebuilds when only source code changes. Using GHCR for the cache keeps it alongside the image registry and uses the built-in `GITHUB_TOKEN` for authentication, so no extra secrets are needed.
 
 ### Docker with cargo-chef
 
@@ -284,6 +284,7 @@ The CI and binary build jobs use `dtolnay/rust-toolchain@stable` without additio
 | Cross-compilation fails for `aarch64`         | Missing cross-compile toolchain                           | Ensure `gcc-aarch64-linux-gnu` install step hasn't been removed                  |
 | GitHub Release creation fails                 | Insufficient permissions                                  | Verify `contents: write` is set in the workflow permissions                      |
 | Post-release PR fails                         | Branch already exists from a previous run                 | Delete the `post-release-v*` branch and re-run the job                           |
+| `ci-gate` fails with "CI has not passed"      | CI workflow did not run or did not succeed on this commit  | Push the commit to a branch first, wait for CI to pass, then tag                 |
 
 ### Rust version mismatch
 

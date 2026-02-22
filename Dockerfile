@@ -41,8 +41,7 @@ COPY . .
 RUN cargo build --release --target $(cat /tmp/target) \
     && mkdir -p /app/out \
     && cp target/$(cat /tmp/target)/release/akash /app/out/ \
-    && cp target/$(cat /tmp/target)/release/aka /app/out/ \
-    && strip /app/out/akash /app/out/aka
+    && cp target/$(cat /tmp/target)/release/aka /app/out/
 
 # ============================================
 # Stage 4: Runtime

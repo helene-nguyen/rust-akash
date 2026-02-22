@@ -46,6 +46,11 @@ Table of Contents
     - [Permission denied on config file](#permission-denied-on-config-file)
     - [Aliases not persisting](#aliases-not-persisting)
   - [Contributing](#contributing)
+  - [Releasing (Maintainers only)](#releasing-maintainers-only)
+    - [Using the release script](#using-the-release-script)
+    - [Manual release](#manual-release)
+    - [Using Makefile](#using-makefile)
+    - [What happens after the tag is pushed](#what-happens-after-the-tag-is-pushed)
   - [License](#license)
   - [Author](#author)
   - [Why Akash?](#why-akash)
@@ -409,6 +414,75 @@ Contribution is welcomed :)
 3. Make your changes
 4. Run tests: `cargo test`
 5. Submit a pull request
+
+## Releasing (Maintainers only)
+
+Releases are fully automated via GitHub Actions. Pushing a `v*` tag triggers the pipeline which builds binaries, publishes to crates.io, pushes Docker images, and creates a GitHub Release.
+
+### Using the release script
+
+```bash
+./scripts/release.sh
+```
+
+The script will:
+
+1. Read the current version from `Cargo.toml`
+2. Prompt you for the new version number
+3. Create an annotated git tag (`v<version>`)
+4. Push the tag to origin, which triggers the [Auto Release](.github/workflows/auto-release.yml) workflow
+
+### Manual release
+
+```bash
+git tag -a v0.2.0 -m ":bookmark: Release v0.2.0"
+git push origin v0.2.0
+```
+
+### Using Makefile
+
+```bash
+make release
+# This will run the same steps as the release script
+
+#Output
+akash on  main [✓] is 📦 v0.1.0 via 🦀 v1.93.0
+> make release
+Current version: 0.1.0
+
+New version (without v): 0.2.0
+Release title will be: :bookmark: Release v0.2.0
+
+  Tag:   v0.2.0
+  Title: :bookmark: Release v0.2.0
+
+Confirm? (y/n): y
+Enumerating objects: 1, done.
+Counting objects: 100% (1/1), done.
+Writing objects: 100% (1/1), 347 bytes | 347.00 KiB/s, done.
+Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+To github.com:helene-nguyen/rust-akash.git
+ * [new tag]         v0.2.0 -> v0.2.0
+
+✅ Tag v0.2.0 pushed. Release workflow will start shortly.
+   Track it at: https://github.com/helene-nguyen/rust-akash/actions
+```
+
+### What happens after the tag is pushed
+
+1. **CI Gate** verifies the CI workflow already passed on this commit
+2. **Build** compiles release binaries for Linux, macOS, and Windows (5 targets)
+3. **Docker** builds and pushes multi-arch images to Docker Hub and GHCR
+4. **Publish** uploads the crate to [crates.io](https://crates.io/crates/akash)
+5. **GitHub Release** is created with auto-generated notes and attached binaries
+6. **Post-Release PR** is opened to bump the version in `Cargo.toml` and update `CHANGELOG.md`
+
+> [!IMPORTANT]
+> Make sure CI has passed on the commit before tagging. The release pipeline will fail at the CI Gate step otherwise.
+
+After the release, merge the auto-generated post-release PR to keep `main` in sync.
+
+For full details, see the [Build Release Guide](docs/build-release-guide.md).
 
 ## License
 

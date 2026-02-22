@@ -15,10 +15,38 @@ env:
 
 jobs:
   # =============================================
-  # Job 1: Build binaries for all platforms
+  # Job 1: Verify CI passed on this commit
+  # =============================================
+  ci-gate:
+    name: Verify CI passed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check CI status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "Checking CI for commit: $SHA"
+
+          gh run list \
+            --repo ${{ github.repository }} \
+            --workflow ci.yml \
+            --commit $SHA \
+            --json status,conclusion \
+            --jq '.[] | select(.conclusion == "success")' \
+            | grep -q "success" \
+            || (echo "::error::CI has not passed. Run CI first before tagging." && exit 1)
+
+          echo "✅ CI passed"
+
+  # =============================================
+  # Job 2: Build binaries for all platforms
   # =============================================
   build:
     name: Build (${{ matrix.target }})
+    needs: ci-gate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -80,34 +108,13 @@ jobs:
             ${{ matrix.artifact }}.zip
 
   # =============================================
-  # Job 2: CI checks (gate for publish)
-  # =============================================
-  ci:
-    name: CI Checks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Format check
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Tests
-        run: cargo test --all-features
-
-  # =============================================
   # Job 3: Build & Push Docker image
   # =============================================
   docker:
     name: Docker (Docker Hub + GHCR)
-    needs: ci
+    needs: ci-gate
     runs-on: ubuntu-latest
+    environment: Docker
     steps:
       - uses: actions/checkout@v4
 
@@ -145,16 +152,17 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/akash:${{ steps.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/akash:latest
             ghcr.io/${{ github.repository_owner }}/akash:${{ steps.version.outputs.version }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/akash:cache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/akash:cache,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/akash:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/akash:cache,mode=max
 
   # =============================================
   # Job 4: Publish to crates.io (only after CI passes)
   # =============================================
   publish:
     name: Publish to crates.io
-    needs: [build, ci]
+    needs: [build]
     runs-on: ubuntu-latest
+    environment: RUST 
     steps:
       - uses: actions/checkout@v4
 
@@ -170,7 +178,7 @@ jobs:
   # =============================================
   release:
     name: Create Release
-    needs: [build, docker, ci]
+    needs: [build, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -188,6 +196,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: ":bookmark: Release ${{ github.ref_name }}"
           generate_release_notes: true
           files: |
             artifacts/*

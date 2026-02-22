@@ -1,6 +1,6 @@
 [package]
 name = "akash"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "A simple cross-platform Rust project. CLI tool to manage shell aliases (aka + shell)."
 keywords = ["cli", "aliases", "shell", "tool"]
