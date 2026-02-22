@@ -150,7 +150,8 @@ After the release is published:
 4. Opens a PR against `main` on branch `post-release-<tag>` using `peter-evans/create-pull-request@v5`
 5. The PR branch is auto-deleted after merge
 
-> [!NOTE] > **Why a PR instead of a direct push?**
+> [!NOTE]
+> **Why a PR instead of a direct push?**
 > When you tag `v0.2.0`, `cargo publish` publishes version `0.2.0` to crates.io, but `Cargo.toml` on `main` might still say `0.1.0`. The post-release PR syncs `main` so that `Cargo.toml` and `CHANGELOG.md` reflect what was actually released.
 >
 > A PR is preferred over a direct push because branch protection rules on `main` would block a direct push, it gives you a chance to review the auto-generated changelog before merging, and if something went wrong in the release, you can close the PR without polluting `main`.
