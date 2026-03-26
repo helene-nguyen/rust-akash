@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-03-26
+
+<!-- Release notes generated using configuration in .github/release.yml at v0.2.1 -->
+
+## What's Changed
+### Other Changes
+* Update CHANGELOG for v0.1.0 by @github-actions[bot] in https://github.com/helene-nguyen/rust-akash/pull/2
+
+
+**Full Changelog**: https://github.com/helene-nguyen/rust-akash/compare/v0.1.0...v0.2.1
+
+
 ## What's Changed
 
 ## [0.1.0] - 2026-02-21
