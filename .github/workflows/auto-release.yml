@@ -181,7 +181,7 @@ jobs:
   # =============================================
   release:
     name: Create Release
-    needs: [build, docker]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -195,6 +195,7 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+          pattern: akash-*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
